@@ -33,13 +33,13 @@ paint_moon:
 	sta	ZP_WIDTH
 	lda	#39
 	sta	ZP_HEIGHT
-	lda	#20
+	lda	#00
 	sta	ZP_X
-	lda	#20
+	lda	#00
 	sta	ZP_Y
-	lda	<SPRITE0
+	lda	#<SPRITE0
 	sta	SRC_START_LO
-	lda	>SPRITE0
+	lda	#>SPRITE0
 	sta	SRC_START_HI
 	jmp	draw_sprite
 
@@ -58,21 +58,21 @@ next_row:
 	ldx	ZP_WIDTH
 
 copy_row_bytes:
+	dex
 	ldy	SRC_OFFSET
 	lda	(SRC_START_LO),y
-	inc	SRC_OFFSET
 
 	ldy	DST_OFFSET
 	sta	(DST_START_LO),y
+
+	inc	SRC_OFFSET
 	inc	DST_OFFSET
 
-	dex
+	cpx	#00
 	bne	copy_row_bytes
 
-	ldx	ZP_HEIGHT
-	dex
+	dec	ZP_HEIGHT
 	beq	draw_sprites_exit
-	stx	ZP_HEIGHT
 	inc	ZP_Y
 	jmp	next_row
 
@@ -129,8 +129,9 @@ loop_draw_text_buffer:
 	rts
 
 delay:
+rts
 	ldx	#$50
-d1	ldy	#$40
+d1	ldy	#$20
 d2	dey
 	bpl	d2
 	dex
@@ -147,6 +148,39 @@ x1:
 	stx	GREETINGS_LINE
 	rts
 
+hscroll:
+	lda	#00
+	sta	$02			; current line being scrolled
+
+h0:
+	ldy	$02
+	lda	YLO,y			; calculate row offset
+	sta	$00
+	lda	YHI,y
+	sta	$01
+
+	ldy	#0			; copy the first byte in this row
+	lda	($00),y
+	pha				; and push it into stack
+h1:
+	iny
+	lda	($00),y
+	dey
+	sta	($00),y
+	iny
+	cpy	#40
+	bne	h1
+
+	dey
+	pla
+	sta	($00),y
+
+	inc	$02
+	ldy	$02
+	cpy	#39
+	bne	h0
+	rts
+
 loop:
 	lda	#0
 	sta	GREETINGS_LINE
@@ -154,6 +188,8 @@ loop:
 loop0:
 	jsr	reset_text_buffer
 loop1:
+	jsr	vsync
+	jsr	hscroll
 	jsr	draw_text_buffer
 	jsr	delay
 	jsr	update_text_buffer
@@ -164,6 +200,16 @@ loop1:
 
 dead:
 	jmp	dead
+
+vsync:
+	lda	$c019
+	bmi	vblank
+	rts
+
+vblank:
+	lda	$c019
+	bpl	vblank
+	rts
 
 YLO	hex 00 00 00 00 00 00 00 00 80 80 80 80 80 80 80 80
 	hex 00 00 00 00 00 00 00 00 80 80 80 80 80 80 80 80
