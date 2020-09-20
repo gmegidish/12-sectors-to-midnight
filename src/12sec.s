@@ -18,17 +18,32 @@ DST_START_HI	EQU	$0007
 SRC_OFFSET	EQU	$0008
 DST_OFFSET	EQU	$0009
 GREETINGS_LINE	EQU	$0010
-TEXT_BUFFER	EQU	$0040
+HSCROLL_DELAY	EQU	$0011
+GREETINGS_DELAY	EQU	$0012
+TEXT_BUFFER	EQU	$0020
 
 start:
+	jsr	clear_text_framebuffer
+	jsr	prepare_screen
+
 	lda	HIRES
 	lda	GR
 	lda	SETMIXED
-	lda	CLRMIXED
+	;lda	CLRMIXED
 	lda	CLRPAGE2
-	;jsr	paint_moon
-	jsr	prepare_screen
 	jmp	loop
+
+clear_text_framebuffer:
+	ldx	#39
+	lda	#$a0		; 0x20 (whitespace) | 0x80 (no inverse)
+c0:
+	sta	$650,x
+	sta	$6d0,x
+	sta	$750,x
+	sta	$7d0,x
+	dex
+	bpl	c0
+	rts
 
 prepare_screen:
 	lda #<compressed_bitmap
@@ -57,22 +72,6 @@ loop_copy:
 	dex
 	bne	loop_copy_row
 	rts
-
-
-paint_moon:
-	lda	#6
-	sta	ZP_WIDTH
-	lda	#39
-	sta	ZP_HEIGHT
-	lda	#00
-	sta	ZP_X
-	lda	#00
-	sta	ZP_Y
-;	lda	#<SPRITE0
-;	sta	SRC_START_LO
-;	lda	#>SPRITE0
-;	sta	SRC_START_HI
-	jmp	draw_sprite
 
 draw_sprite:
 	ldy	#00
@@ -111,41 +110,62 @@ draw_sprites_exit:
 	rts
 
 reset_text_buffer:
-	ldx	#39
-copy_1:
+
+	lda	GREETINGS_LINE	; find the greetings line we're referring
+	asl
+	tax
 	lda	GREETINGS,x
+	sta	$00
+	inx
+	lda	GREETINGS,x
+	sta	$01
+
+	ldy	#39
+copy_1:
+	lda	($00),y
 	cmp	#$20
 	beq	copy_2
 	lda	#$ff
 copy_2:
-	sta	TEXT_BUFFER,x
-	dex
+	sta	TEXT_BUFFER,y
+	dey
 	bpl	copy_1
 	rts
 
-odds
-	db	1, 3, 5, 7, 9, 11, 13, 15, 17, 19
-	db	1, 3, 5, 7, 9, 11, 13, 15, 17, 19
-	db	1, 3, 5, 7, 9, 11, 13, 15, 17, 19
-	db	1, 3, 5, 7, 9, 11, 13, 15, 17, 19
+odds:
+	db	1, 3, 5, 7, 9, 11, 13, -5, -3, -1
+	db	1, 3, 5, 7, 9, 11, 13, -5, -3, -1
+	db	1, 3, 5, 7, 9, 11, 13, -5, -3, -1
+	db	1, 3, 5, 7, 9, 11, 13, -5, -3, -1
 
 update_text_buffer:
-	ldy	#0		; have we updated any characters?
-	ldx	#39
+
+	lda	GREETINGS_LINE	; find the greetings line we're referring
+	asl
+	tax
+	lda	GREETINGS,x
+	sta	$00
+	inx
+	lda	GREETINGS,x
+	sta	$01
+
+	ldx	#0		; have we updated any characters?
+	ldy	#39		; how many characters to run through
+
 update_1:
-	lda	TEXT_BUFFER,x
-	cmp	GREETINGS,x
+	lda	TEXT_BUFFER,y
+	cmp	($00),y
 	beq	update_2
 
 	clc
-	lda	odds,x
-	adc	TEXT_BUFFER,x
-	sta	TEXT_BUFFER,x
-	ldy	#1
+	lda	odds,y
+	adc	TEXT_BUFFER,y
+	sta	TEXT_BUFFER,y
+	ldx	#1
 update_2:
-	dex
+	dey
 	bpl	update_1
-	tya			; return boolean as A
+	txa			; return boolean as a
 	rts
 
 
@@ -154,13 +174,12 @@ draw_text_buffer:
 loop_draw_text_buffer:
 	lda	TEXT_BUFFER,x
 	ora	#$80
-	sta	#$650,x
+	sta	#$6d0,x
 	dex
 	bpl	loop_draw_text_buffer
 	rts
 
 delay:
-rts
 	ldx	#$50
 d1	ldy	#$20
 d2	dey
@@ -170,13 +189,13 @@ d2	dey
 	rts
 
 next_greetings_line:
+	inc	GREETINGS_LINE
 	ldx	GREETINGS_LINE
-	inx
-	cpx	#6
-	bcs	x1
+	cpx	#9
+	bne	x1
 	ldx	#0
-x1:
 	stx	GREETINGS_LINE
+x1:
 	rts
 
 hscroll:
@@ -193,18 +212,28 @@ h0:
 	ldy	#0			; copy the first byte in this row
 	lda	($00),y
 	pha				; and push it into stack
+	iny
+	lda	($00),y
+	pha				; copy the second byte
+
+	ldy	#00
 
 h1:
 	iny
+	iny
 	lda	($00),y
+	dey
 	dey
 	sta	($00),y
 	iny
 	cpy	#40
 	bne	h1
 
-	dey
 	pla
+	ldy	#39
+	sta	($00),y
+	pla
+	dey
 	sta	($00),y
 
 	inc	$02
@@ -216,18 +245,38 @@ h1:
 loop:
 	lda	#0
 	sta	GREETINGS_LINE
+	sta	GREETINGS_DELAY
+	lda	#1
+	sta	HSCROLL_DELAY
 
 loop0:
 	jsr	reset_text_buffer
 loop1:
 	jsr	vblank
+
+	dec	HSCROLL_DELAY
+	bne	skip_hscroll
 	jsr	hscroll
-;	jsr	delay
+	lda	#15
+	sta	HSCROLL_DELAY
+skip_hscroll:
+
+	lda	GREETINGS_DELAY
+	bne	delay_on_text
+
 	jsr	draw_text_buffer
 	jsr	update_text_buffer
 	bne	loop1
 
+text_buffer_complete:
+	lda	#$ff
+	sta	GREETINGS_DELAY
+
 	jsr	next_greetings_line
+	jmp	loop0
+
+delay_on_text:
+	dec	GREETINGS_DELAY
 	jmp	loop0
 
 dead:
@@ -273,14 +322,26 @@ YHI	hex 20 24 28 2C 30 34 38 3C 20 24 28 2C 30 34 38 3C
 	hex 22 26 2A 2E 32 36 3A 3E 22 26 2A 2E 32 36 3A 3E
 	hex 23 27 2B 2F 33 37 3B 3F 23 27 2B 2F 33 37 3B 3F
 
+LINE1	db "            EEEEEEEEEEEEEEK!!!!         "
+LINE2	db "====== IT'S 12 SECTORS TO MIDNIGHT ====="
+LINE3	db "     WISHING YOU A HAPPY QUARANTINE!    "
+LINE4	db "         OF SWEET SWEET COVID 19        "
+LINE5	db "         NNNNNNAAAAAAAAHHHHHHHH!        "
+LINE6   db "         MAY THIS ALL END SOON..        "
+LINE7	db "     AND WE ALL BE TRICK OR TREATING    "
+LINE8	db " GREETINGS TO THE A2E FACEBOOK GROUP <3 "
+LINE9	db " -------------------------------------- "
+
 GREETINGS
-;	db "1234567890123456789012345678901234567890"
-;	db "            EEEEEEEEEEEEEEK!!!!         "
-;	db "        IT'S 12 SECTORS TO MIDNIGHT     "
-	db "     WISHING YOU A HAPPY QUARANTINE!    "
-	db "         OF SWEET SWEET COVID 19        "
-	db " NNNAAAAAHHHH! MAY THIS ALL END SOON!   "
-	db "     AND WE ALL BE TRICK OR TREATIN'    "
+	db <LINE1, >LINE1
+	db <LINE2, >LINE2
+	db <LINE3, >LINE3
+	db <LINE4, >LINE4
+	db <LINE5, >LINE5
+	db <LINE6, >LINE6
+	db <LINE7, >LINE7
+	db <LINE8, >LINE8
+	db <LINE9, >LINE9
 
 ;incsrc "sprite-moon.s"
 
