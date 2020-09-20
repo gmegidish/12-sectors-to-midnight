@@ -1,5 +1,5 @@
 
-ORG $8000
+ORG $4000
 
 GR       	EQU	$C050
 CLRMIXED	EQU	$C052
@@ -24,9 +24,40 @@ start:
 	lda	HIRES
 	lda	GR
 	lda	SETMIXED
+	lda	CLRMIXED
 	lda	CLRPAGE2
-	jsr	paint_moon
+	;jsr	paint_moon
+	jsr	prepare_screen
 	jmp	loop
+
+prepare_screen:
+	lda #<compressed_bitmap
+	sta $00
+	lda #>compressed_bitmap
+	sta $01
+
+	lda #$00
+	sta $02
+	lda #$20
+	sta $03
+
+	; copy 8192 bytes (32 pages)
+	ldx #32
+
+loop_copy_row:
+	ldy	#0
+loop_copy:
+	lda	($00),y
+	sta	($02),y
+	dey
+	bne	loop_copy
+
+	inc	$01
+	inc	$03
+	dex
+	bne	loop_copy_row
+	rts
+
 
 paint_moon:
 	lda	#6
@@ -37,10 +68,10 @@ paint_moon:
 	sta	ZP_X
 	lda	#00
 	sta	ZP_Y
-	lda	#<SPRITE0
-	sta	SRC_START_LO
-	lda	#>SPRITE0
-	sta	SRC_START_HI
+;	lda	#<SPRITE0
+;	sta	SRC_START_LO
+;	lda	#>SPRITE0
+;	sta	SRC_START_HI
 	jmp	draw_sprite
 
 draw_sprite:
@@ -149,8 +180,8 @@ x1:
 	rts
 
 hscroll:
-	lda	#00
-	sta	$02			; current line being scrolled
+	ldy	#115
+	sty	$02			; current line being scrolled
 
 h0:
 	ldy	$02
@@ -162,6 +193,7 @@ h0:
 	ldy	#0			; copy the first byte in this row
 	lda	($00),y
 	pha				; and push it into stack
+
 h1:
 	iny
 	lda	($00),y
@@ -177,7 +209,7 @@ h1:
 
 	inc	$02
 	ldy	$02
-	cpy	#39
+	cpy	#160
 	bne	h0
 	rts
 
@@ -188,10 +220,10 @@ loop:
 loop0:
 	jsr	reset_text_buffer
 loop1:
-	jsr	vsync
+	jsr	vblank
 	jsr	hscroll
+;	jsr	delay
 	jsr	draw_text_buffer
-	jsr	delay
 	jsr	update_text_buffer
 	bne	loop1
 
@@ -243,13 +275,16 @@ YHI	hex 20 24 28 2C 30 34 38 3C 20 24 28 2C 30 34 38 3C
 
 GREETINGS
 ;	db "1234567890123456789012345678901234567890"
-	db "            EEEEEEEEEEEEEEK!!!!         "
-	db "        IT'S 12 SECTORS TO MIDNIGHT     "
+;	db "            EEEEEEEEEEEEEEK!!!!         "
+;	db "        IT'S 12 SECTORS TO MIDNIGHT     "
 	db "     WISHING YOU A HAPPY QUARANTINE!    "
 	db "         OF SWEET SWEET COVID 19        "
 	db " NNNAAAAAHHHH! MAY THIS ALL END SOON!   "
 	db "     AND WE ALL BE TRICK OR TREATIN'    "
 
-incsrc "src/sprite-moon.s"
+;incsrc "sprite-moon.s"
+
+compressed_bitmap:
+incbin "HAGCH.BIN"
 
 ; ORG $8000+3072-4
