@@ -1,12 +1,21 @@
+;
+;   __ ___                _                 _                  _     _       _       _     _
+;  /_ |__ \              | |               | |                (_)   | |     (_)     | |   | |
+;   | |  ) |___  ___  ___| |_ ___  _ __ ___| |_ ___  _ __ ___  _  __| |_ __  _  __ _| |__ | |_
+;   | | / // __|/ _ \/ __| __/ _ \| '__/ __| __/ _ \| '_ ` _ \| |/ _` | '_ \| |/ _` | '_ \| __|
+;   | |/ /_\__ \  __/ (__| || (_) | |  \__ \ || (_) | | | | | | | (_| | | | | | (_| | | | | |_
+;   |_|____|___/\___|\___|\__\___/|_|  |___/\__\___/|_| |_| |_|_|\__,_|_| |_|_|\__, |_| |_|\__|
+;                                                                               __/ |
+;                                                                              |___/
+;
+; A short scroller demo for Apple2
+; Written by Gil Megidish (www.megidish.net)
+; Written for 12 Sectors to Midnight (https://www.facebook.com/events/2551527591827790/)
+; LZ4FH decompression routines by Andy McFadden & Peter Ferrie
 
-ORG $4000
+ORG $8000
 
-GR       	EQU	$C050
-CLRMIXED	EQU	$C052
-SETMIXED	EQU	$C053
-CLRPAGE2	EQU	$C054
-HIRES    	EQU	$C057
-SPEAKER		EQU	$C030
+incsrc	"equ.s"
 
 SRCX		EQU	$0000
 SRCY		EQU	$0001
@@ -16,9 +25,11 @@ DSTX		EQU	$0004
 DSTY		EQU	$0005
 SRC_OFFSET	EQU	$0006
 DST_OFFSET	EQU	$0008
+HAG_Y_DELAY	EQU	$000a
 GREETINGS_LINE	EQU	$0010
 HSCROLL_DELAY	EQU	$0011
-GREETINGS_DELAY	EQU	$0012
+HAG_Y_LUT	EQU	$0012
+GREETINGS_DELAY	EQU	$0013
 TEXT_BUFFER	EQU	$0020
 
 start:
@@ -30,7 +41,12 @@ start:
 	lda	SETMIXED
 	;lda	CLRMIXED
 	lda	CLRPAGE2
-	jmp	loop
+	jsr	loop
+
+exit:
+	lda	TEXT
+	lda	CLRMIXED
+	rts
 
 clear_text_framebuffer:
 	ldx	#39
@@ -60,7 +76,6 @@ prepare_screen:
 	rts
 
 copy_sprite:
-	; we have SRCX, SRCY, SRCW, SRCH and DSTX, DSTY
 	clc
 	ldx	SRCY
 	lda	YLO,x
@@ -93,6 +108,10 @@ copy_bytes:
 	bne	copy_sprite
 	rts
 
+;=========================
+; Prepare current greeting line with random characters (always 0xff)
+; but with spaces in the right positions.
+;=========================
 reset_text_buffer:
 
 	lda	GREETINGS_LINE	; find the greetings line we're referring
@@ -116,12 +135,10 @@ copy_2:
 	bpl	copy_1
 	rts
 
-odds:
-	db	1, 3, 5, 7, 9, 11, 13, -5, -3, -1
-	db	1, 3, 5, 7, 9, 11, 13, -5, -3, -1
-	db	1, 3, 5, 7, 9, 11, 13, -5, -3, -1
-	db	1, 3, 5, 7, 9, 11, 13, -5, -3, -1
-
+;=========================
+; Update greetings with then next frame. Will update all characters, and
+; if no characters were updated, will return A=0.
+;=========================
 update_text_buffer:
 
 	lda	GREETINGS_LINE	; find the greetings line we're referring
@@ -142,10 +159,10 @@ update_1:
 	beq	update_2
 
 	clc
-	lda	odds,y
+	lda	SOME_ODD_NUMBERS,y
 	adc	TEXT_BUFFER,y
 	sta	TEXT_BUFFER,y
-	;lda	SPEAKER
+	lda	SPEAKER
 	ldx	#1
 update_2:
 	dey
@@ -153,7 +170,9 @@ update_2:
 	txa			; return boolean as a
 	rts
 
-
+;=========================
+; Copy the current greeting line to text framebuffer.
+;=========================
 draw_text_buffer:
 	ldx	#39
 loop_draw_text_buffer:
@@ -164,35 +183,40 @@ loop_draw_text_buffer:
 	bpl	loop_draw_text_buffer
 	rts
 
-delay:
-	ldx	#$50
-d1	ldy	#$20
-d2	dey
-	bpl	d2
-	dex
-	bne	d1
-	rts
-
+;=========================
+; Move pointer to next greeting line
+;=========================
 next_greetings_line:
 	inc	GREETINGS_LINE
 	ldx	GREETINGS_LINE
-	cpx	#9
+	cpx	#14
 	bne	x1
 	ldx	#0
 	stx	GREETINGS_LINE
 x1:
 	rts
 
+;=========================
+; Horizontal scroll of rows 115-160 (trees)
+;=========================
 hscroll:
 	ldy	#115
-	sty	$02			; current line being scrolled
+	sty	$04			; current line being scrolled
 
 h0:
-	ldy	$02
+	ldy	$04
 	lda	YLO,y			; calculate row offset
 	sta	$00
 	lda	YHI,y
 	sta	$01
+
+	clc
+	lda	YLO,y
+	adc	#2
+	sta	$02
+	lda	YHI,y
+	adc	#0
+	sta	$03
 
 	ldy	#0			; copy the first byte in this row
 	lda	($00),y
@@ -204,13 +228,22 @@ h0:
 	ldy	#00
 
 h1:
-	iny
-	iny
-	lda	($00),y
-	dey
-	dey
+	lda	($02),y			; copy one byte (unrolled 4 times to reduce cpy and bne)
 	sta	($00),y
 	iny
+
+	lda	($02),y
+	sta	($00),y
+	iny
+
+	lda	($02),y
+	sta	($00),y
+	iny
+
+	lda	($02),y
+	sta	($00),y
+	iny
+
 	cpy	#40
 	bne	h1
 
@@ -221,39 +254,65 @@ h1:
 	dey
 	sta	($00),y
 
-	inc	$02
-	ldy	$02
+	inc	$04
+	ldy	$04
 	cpy	#160
 	bne	h0
 	rts
 
+;=========================
+; Draw old hag at her position. Takes delay and y-positioning into consideration.
+;=========================
 draw_hag:
+	dec	HAG_Y_DELAY
+	bne	draw_hag_2
+
+	lda	#8
+	sta	HAG_Y_DELAY
+
+	inc	HAG_Y_LUT
+	ldx	HAG_Y_LUT
+	lda	HAG_Y,x
+	cmp	#127
+	bne	draw_hag_2
+	lda	#0
+	sta	HAG_Y_LUT
+
 	; copy (7,164) 28x19
+draw_hag_2:
 	lda	#1			; 7/7
 	sta	SRCX
-	lda	#164
+	lda	#163
 	sta	SRCY
 	lda	#4			; 28/7
 	sta	SRCW
-	lda	#19
+	lda	#22
 	sta	SRCH
 	lda	#3
 	sta	DSTX			; 21/7
-	lda	#21
+	clc
+	ldx	HAG_Y_LUT
+	lda	HAG_Y,x
+	adc	#21
 	sta	DSTY
 	jmp	copy_sprite
 
+;=========================
+; Main demo loop. This never exits :)
+;=========================
 loop:
 	lda	#0
 	sta	GREETINGS_LINE
 	sta	GREETINGS_DELAY
+	sta	HAG_Y_LUT
 	lda	#1
 	sta	HSCROLL_DELAY
+	sta	HAG_Y_DELAY
 
 loop0:
 	jsr	reset_text_buffer
 loop1:
-	jsr	vblank
+	jsr	vsync
 	jsr	draw_hag
 
 	dec	HSCROLL_DELAY
@@ -281,9 +340,6 @@ delay_on_text:
 	dec	GREETINGS_DELAY
 	jmp	loop0
 
-dead:
-	jmp	dead
-
 vsync:
 	lda	$c019
 	bmi	vblank
@@ -294,45 +350,19 @@ vblank:
 	bpl	vblank
 	rts
 
-YLO	hex 00 00 00 00 00 00 00 00 80 80 80 80 80 80 80 80
-	hex 00 00 00 00 00 00 00 00 80 80 80 80 80 80 80 80
-	hex 00 00 00 00 00 00 00 00 80 80 80 80 80 80 80 80
-	hex 00 00 00 00 00 00 00 00 80 80 80 80 80 80 80 80
-
-	hex 28 28 28 28 28 28 28 28 A8 A8 A8 A8 A8 A8 A8 A8
-	hex 28 28 28 28 28 28 28 28 A8 A8 A8 A8 A8 A8 A8 A8
-	hex 28 28 28 28 28 28 28 28 A8 A8 A8 A8 A8 A8 A8 A8
-	hex 28 28 28 28 28 28 28 28 A8 A8 A8 A8 A8 A8 A8 A8
-
-	hex 50 50 50 50 50 50 50 50 D0 D0 D0 D0 D0 D0 D0 D0
-	hex 50 50 50 50 50 50 50 50 D0 D0 D0 D0 D0 D0 D0 D0
-	hex 50 50 50 50 50 50 50 50 D0 D0 D0 D0 D0 D0 D0 D0
-	hex 50 50 50 50 50 50 50 50 D0 D0 D0 D0 D0 D0 D0 D0
-
-YHI	hex 20 24 28 2C 30 34 38 3C 20 24 28 2C 30 34 38 3C
-	hex 21 25 29 2D 31 35 39 3D 21 25 29 2D 31 35 39 3D
-	hex 22 26 2A 2E 32 36 3A 3E 22 26 2A 2E 32 36 3A 3E
-	hex 23 27 2B 2F 33 37 3B 3F 23 27 2B 2F 33 37 3B 3F
-
-	hex 20 24 28 2C 30 34 38 3C 20 24 28 2C 30 34 38 3C
-	hex 21 25 29 2D 31 35 39 3D 21 25 29 2D 31 35 39 3D
-	hex 22 26 2A 2E 32 36 3A 3E 22 26 2A 2E 32 36 3A 3E
-	hex 23 27 2B 2F 33 37 3B 3F 23 27 2B 2F 33 37 3B 3F
-
-	hex 20 24 28 2C 30 34 38 3C 20 24 28 2C 30 34 38 3C
-	hex 21 25 29 2D 31 35 39 3D 21 25 29 2D 31 35 39 3D
-	hex 22 26 2A 2E 32 36 3A 3E 22 26 2A 2E 32 36 3A 3E
-	hex 23 27 2B 2F 33 37 3B 3F 23 27 2B 2F 33 37 3B 3F
-
-LINE1	db "          EEEEEEEEEEEEEEEEK!!!!         "
-LINE2	db "====== IT'S 12 SECTORS TO MIDNIGHT ====="
-LINE3	db "     WISHING YOU A HAPPY QUARANTINE!    "
-LINE4	db "         OF SWEET SWEET COVID 19        "
-LINE5	db "         NNNNNNAAAAAAAAHHHHHHHH!        "
-LINE6   db "         MAY THIS ALL END SOON..        "
-LINE7	db "     AND WE ALL BE TRICK OR TREATING    "
-LINE8	db " GREETINGS TO THE A2E FACEBOOK GROUP <3 "
-LINE9	db " -------------------------------------- "
+LINE1	db "====== IT'S 12 SECTORS TO MIDNIGHT ====="
+LINE2	db "     WISHING YOU A HAPPY QUARANTINE!    "
+LINE3	db "         OF SWEET SWEET COVID 19        "
+LINE4	db "         NNNNNNAAAAAAAAHHHHHHHH!        "
+LINE5   db "         MAY THIS ALL END SOON..        "
+LINE6	db "     AND WE ALL BE TRICK OR TREATING    "
+LINE7	db " GREETINGS TO THE A2E FACEBOOK GROUP <3 "
+LINE8	db " -------------------------------------- "
+LINE9	db "          EEEEEEEEEEEEEEEEK!!!!         "
+LINE10	db "         ARE YOU STILL AROUND??         "
+LINE11	db "             WEAR SUNSCREEN             "
+LINE12	db "            VOTE FOR PEDRO              "
+LINE13	db "           SEE YOU IN 2021              "
 
 GREETINGS
 	db <LINE1, >LINE1
@@ -344,10 +374,28 @@ GREETINGS
 	db <LINE7, >LINE7
 	db <LINE8, >LINE8
 	db <LINE9, >LINE9
+	db <LINE10, >LINE10
+	db <LINE11, >LINE11
+	db <LINE12, >LINE12
+	db <LINE13, >LINE13
+	db <LINE8, >LINE8
 
+; used for text effect. must be an odd value to ever make it to the right character
+SOME_ODD_NUMBERS
+	db 1, 3, 5, 7, 9, 11, 13, -5, -3, -1, 1, 3, 5, 7, 9, 11, 13, -5, -3, -1
+	db 1, 3, 5, 7, 9, 11, 13, -5, -3, -1, 1, 3, 5, 7, 9, 11, 13, -5, -3, -1
+
+; hag vertical position animation. fake sine wave :)
+HAG_Y
+	db 0, -1, -2, -2, -3, -3, -3, -2, -2, -1, 0
+	db 0, +1, +2, +2, +3, +3, +3, +2, +2, +1, 0
+	db 127
+
+incsrc "hires.s"
 incsrc "lz4fh6502.s"
 
 compressed_bitmap:
-incbin "HAGCH.lz4"
+incbin "hagch.lz4"
 
+; uncomment this line to make a perfect 3072 bytes file
 ; ORG $8000+3072-4
