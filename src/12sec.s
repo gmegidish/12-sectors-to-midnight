@@ -23,8 +23,8 @@ GREETINGS_DELAY	EQU	$0012
 TEXT_BUFFER	EQU	$0020
 
 start:
-	jsr	clear_text_framebuffer
 	jsr	prepare_screen
+	jsr	clear_text_framebuffer
 
 	lda	HIRES
 	lda	GR
@@ -46,31 +46,18 @@ c0:
 	rts
 
 prepare_screen:
+
 	lda #<compressed_bitmap
-	sta $00
+	sta $2fc
 	lda #>compressed_bitmap
-	sta $01
+	sta $2fd
 
 	lda #$00
-	sta $02
+	sta $2fe
 	lda #$20
-	sta $03
+	sta $2ff
 
-	; copy 8192 bytes (32 pages)
-	ldx #32
-
-loop_copy_row:
-	ldy	#0
-loop_copy:
-	lda	($00),y
-	sta	($02),y
-	dey
-	bne	loop_copy
-
-	inc	$01
-	inc	$03
-	dex
-	bne	loop_copy_row
+	jsr entry
 	rts
 
 draw_sprite:
@@ -242,6 +229,9 @@ h1:
 	bne	h0
 	rts
 
+draw_hag:
+	; copy (7,164) 28x19
+
 loop:
 	lda	#0
 	sta	GREETINGS_LINE
@@ -253,6 +243,7 @@ loop0:
 	jsr	reset_text_buffer
 loop1:
 	jsr	vblank
+	;jsr	draw_hag
 
 	dec	HSCROLL_DELAY
 	bne	skip_hscroll
@@ -343,9 +334,9 @@ GREETINGS
 	db <LINE8, >LINE8
 	db <LINE9, >LINE9
 
-;incsrc "sprite-moon.s"
+incsrc "lz4fh6502.s"
 
 compressed_bitmap:
-incbin "HAGCH.BIN"
+incbin "HAGCH.lz4"
 
 ; ORG $8000+3072-4
