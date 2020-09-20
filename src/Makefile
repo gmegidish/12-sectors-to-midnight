@@ -23,4 +23,4 @@ hagch.lz4: hagch.bin
 	ls -l $@
 
 clean:
-	rm -f 12sec.bin hagch.lz4 hagch.bin
+	rm -f 12sec.bin hagch.lz4 hagch.bin hag.bmp hag_Preview.bmp
