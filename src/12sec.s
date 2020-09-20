@@ -6,17 +6,16 @@ CLRMIXED	EQU	$C052
 SETMIXED	EQU	$C053
 CLRPAGE2	EQU	$C054
 HIRES    	EQU	$C057
+SPEAKER		EQU	$C030
 
-ZP_WIDTH	EQU	$0000
-ZP_HEIGHT	EQU	$0001
-ZP_X		EQU	$0002
-ZP_Y		EQU	$0003
-SRC_START_LO	EQU	$0004
-SRC_START_HI	EQU	$0005
-DST_START_LO	EQU	$0006
-DST_START_HI	EQU	$0007
-SRC_OFFSET	EQU	$0008
-DST_OFFSET	EQU	$0009
+SRCX		EQU	$0000
+SRCY		EQU	$0001
+SRCW		EQU	$0002
+SRCH		EQU	$0003
+DSTX		EQU	$0004
+DSTY		EQU	$0005
+SRC_OFFSET	EQU	$0006
+DST_OFFSET	EQU	$0008
 GREETINGS_LINE	EQU	$0010
 HSCROLL_DELAY	EQU	$0011
 GREETINGS_DELAY	EQU	$0012
@@ -47,53 +46,51 @@ c0:
 
 prepare_screen:
 
-	lda #<compressed_bitmap
-	sta $2fc
-	lda #>compressed_bitmap
-	sta $2fd
+	lda	#<compressed_bitmap
+	sta	$2fc
+	lda	#>compressed_bitmap
+	sta	$2fd
 
-	lda #$00
-	sta $2fe
-	lda #$20
-	sta $2ff
+	lda	#$00			; unpack directly into page1
+	sta	$2fe
+	lda	#$20
+	sta	$2ff
 
-	jsr entry
+	jsr	entry			; call lz4fh decompressor
 	rts
 
-draw_sprite:
-	ldy	#00
-	sty	SRC_OFFSET
-
-next_row:
-	ldx	ZP_Y
+copy_sprite:
+	; we have SRCX, SRCY, SRCW, SRCH and DSTX, DSTY
+	clc
+	ldx	SRCY
 	lda	YLO,x
-	sta	DST_START_LO
+	adc	SRCX
+	sta	SRC_OFFSET
 	lda	YHI,x
-	sta	DST_START_HI
-	ldy	#00
-	sty	DST_OFFSET
-	ldx	ZP_WIDTH
+	adc	#0
+	sta	SRC_OFFSET+1
 
-copy_row_bytes:
-	dex
-	ldy	SRC_OFFSET
-	lda	(SRC_START_LO),y
+	clc
+	ldx	DSTY
+	lda	YLO,x
+	adc	DSTX
+	sta	DST_OFFSET
+	lda	YHI,x
+	adc	#0
+	sta	DST_OFFSET+1
 
-	ldy	DST_OFFSET
-	sta	(DST_START_LO),y
+	ldy	SRCW
+	dey
+copy_bytes:
+	lda	(SRC_OFFSET),y
+	sta	(DST_OFFSET),y
+	dey
+	bpl	copy_bytes
 
-	inc	SRC_OFFSET
-	inc	DST_OFFSET
-
-	cpx	#00
-	bne	copy_row_bytes
-
-	dec	ZP_HEIGHT
-	beq	draw_sprites_exit
-	inc	ZP_Y
-	jmp	next_row
-
-draw_sprites_exit:
+	inc	SRCY
+	inc	DSTY
+	dec	SRCH
+	bne	copy_sprite
 	rts
 
 reset_text_buffer:
@@ -148,6 +145,7 @@ update_1:
 	lda	odds,y
 	adc	TEXT_BUFFER,y
 	sta	TEXT_BUFFER,y
+	;lda	SPEAKER
 	ldx	#1
 update_2:
 	dey
@@ -231,6 +229,19 @@ h1:
 
 draw_hag:
 	; copy (7,164) 28x19
+	lda	#1			; 7/7
+	sta	SRCX
+	lda	#164
+	sta	SRCY
+	lda	#4			; 28/7
+	sta	SRCW
+	lda	#19
+	sta	SRCH
+	lda	#3
+	sta	DSTX			; 21/7
+	lda	#21
+	sta	DSTY
+	jmp	copy_sprite
 
 loop:
 	lda	#0
@@ -243,7 +254,7 @@ loop0:
 	jsr	reset_text_buffer
 loop1:
 	jsr	vblank
-	;jsr	draw_hag
+	jsr	draw_hag
 
 	dec	HSCROLL_DELAY
 	bne	skip_hscroll
@@ -313,7 +324,7 @@ YHI	hex 20 24 28 2C 30 34 38 3C 20 24 28 2C 30 34 38 3C
 	hex 22 26 2A 2E 32 36 3A 3E 22 26 2A 2E 32 36 3A 3E
 	hex 23 27 2B 2F 33 37 3B 3F 23 27 2B 2F 33 37 3B 3F
 
-LINE1	db "            EEEEEEEEEEEEEEK!!!!         "
+LINE1	db "          EEEEEEEEEEEEEEEEK!!!!         "
 LINE2	db "====== IT'S 12 SECTORS TO MIDNIGHT ====="
 LINE3	db "     WISHING YOU A HAPPY QUARANTINE!    "
 LINE4	db "         OF SWEET SWEET COVID 19        "
