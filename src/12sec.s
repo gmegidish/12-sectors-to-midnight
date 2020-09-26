@@ -189,7 +189,7 @@ loop_draw_text_buffer:
 next_greetings_line:
 	inc	GREETINGS_LINE
 	ldx	GREETINGS_LINE
-	cpx	#13
+	cpx	#8
 	bne	x1
 	ldx	#0
 	stx	GREETINGS_LINE
@@ -228,18 +228,6 @@ h0:
 	ldy	#00
 
 h1:
-	lda	($02),y			; copy one byte (unrolled 4 times to reduce cpy and bne)
-	sta	($00),y
-	iny
-
-	lda	($02),y
-	sta	($00),y
-	iny
-
-	lda	($02),y
-	sta	($00),y
-	iny
-
 	lda	($02),y
 	sta	($00),y
 	iny
@@ -312,7 +300,6 @@ loop:
 loop0:
 	jsr	reset_text_buffer
 loop1:
-	jsr	vsync
 	jsr	draw_hag
 
 	dec	HSCROLL_DELAY
@@ -340,28 +327,14 @@ delay_on_text:
 	dec	GREETINGS_DELAY
 	jmp	loop0
 
-vsync:
-	lda	$c019
-	bmi	vblank
-	rts
-
-vblank:
-	lda	$c019
-	bpl	vblank
-	rts
-
 LINE1	db "====== IT'S 12 SECTORS TO MIDNIGHT ====="
 LINE2	db "     WISHING YOU A HAPPY QUARANTINE!    "
 LINE3	db "         OF SWEET SWEET COVID 19        "
 LINE4	db "         NNNNNNAAAAAAAAHHHHHHHH!        "
-LINE5   db "         MAY THIS ALL END SOON..        "
-LINE6	db "     AND WE ALL BE TRICK OR TREATING    "
-LINE7	db " GREETINGS TO THE A2E FACEBOOK GROUP <3 "
-LINE8	db " -------------------------------------- "
-LINE9	db "         ARE YOU STILL AROUND??         "
-LINE10	db "             WEAR SUNSCREEN             "
-LINE11	db "            VOTE FOR PEDRO              "
-LINE12	db "           SEE YOU IN 2021              "
+LINE5	db "  MAY WE ALL BE TRICK OR TREATING SOON! "
+LINE6	db " GREETINGS TO THE A2E FACEBOOK GROUP <3 "
+LINE7	db "    WEAR SUNSCREEN. VOTE FOR PEDRO.     "
+LINE8	db "           SEE YOU IN 2021              "
 
 GREETINGS
 	db <LINE1, >LINE1
@@ -371,11 +344,6 @@ GREETINGS
 	db <LINE5, >LINE5
 	db <LINE6, >LINE6
 	db <LINE7, >LINE7
-	db <LINE8, >LINE8
-	db <LINE9, >LINE9
-	db <LINE10, >LINE10
-	db <LINE11, >LINE11
-	db <LINE12, >LINE12
 	db <LINE8, >LINE8
 
 ; used for text effect. must be an odd value to ever make it to the right character

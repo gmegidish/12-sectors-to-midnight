@@ -6,8 +6,9 @@ ASM6F="/usr/local/bin/asm6f"
 B2D="/Applications/buckshot.app/Contents/MacOS/b2d"
 
 12sectors.dsk: master.dsk 12sec.bin
-	java -jar ac.jar -d master.dsk TEST
-	java -jar ac.jar -p master.dsk TEST B 0x8000 < 12sec.bin
+	java -jar "AppleCommander-ac-1.6.0.jar" -d master.dsk TEST
+	java -jar "AppleCommander-ac-1.6.0.jar" -p master.dsk TEST B 0x8000 < 12sec.bin
+	java -jar AppleCommander-ac-1.6.0.jar -ll MASTER.DSK | grep TEST
 
 hag.bmp: hag.png
 	convert hag.png -colorspace RGB -type truecolor hag.bmp
