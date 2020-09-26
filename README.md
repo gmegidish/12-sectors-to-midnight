@@ -10,6 +10,8 @@
                                                                             |___/
 ```           
 
+![](12-sectors-to-midnight-screenshot.png)
+
 #### What's this?
 
 A short scroller demo for Apple II (48k and up)
