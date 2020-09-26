@@ -189,7 +189,7 @@ loop_draw_text_buffer:
 next_greetings_line:
 	inc	GREETINGS_LINE
 	ldx	GREETINGS_LINE
-	cpx	#14
+	cpx	#13
 	bne	x1
 	ldx	#0
 	stx	GREETINGS_LINE
@@ -358,11 +358,10 @@ LINE5   db "         MAY THIS ALL END SOON..        "
 LINE6	db "     AND WE ALL BE TRICK OR TREATING    "
 LINE7	db " GREETINGS TO THE A2E FACEBOOK GROUP <3 "
 LINE8	db " -------------------------------------- "
-LINE9	db "          EEEEEEEEEEEEEEEEK!!!!         "
-LINE10	db "         ARE YOU STILL AROUND??         "
-LINE11	db "             WEAR SUNSCREEN             "
-LINE12	db "            VOTE FOR PEDRO              "
-LINE13	db "           SEE YOU IN 2021              "
+LINE9	db "         ARE YOU STILL AROUND??         "
+LINE10	db "             WEAR SUNSCREEN             "
+LINE11	db "            VOTE FOR PEDRO              "
+LINE12	db "           SEE YOU IN 2021              "
 
 GREETINGS
 	db <LINE1, >LINE1
@@ -377,7 +376,6 @@ GREETINGS
 	db <LINE10, >LINE10
 	db <LINE11, >LINE11
 	db <LINE12, >LINE12
-	db <LINE13, >LINE13
 	db <LINE8, >LINE8
 
 ; used for text effect. must be an odd value to ever make it to the right character
