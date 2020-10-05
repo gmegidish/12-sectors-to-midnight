@@ -21,7 +21,7 @@ Complete code is provided in this git. You can see that I used photoshop to desi
 
 The sprite of the hag was taken from the game Cauldron for the C64, and modified to match Apple II limitations.
 
-Technically, 12 sectors is 3072 bytes. For some reason, each file I copy to .DSK gets an additional sector. I couldn't find why, but I had to cut some unrolled optimizations and a few text lines, to make this intro fit in 11 sectors.
+Technically, 12 sectors is 3072 bytes. Each file on disk has an extra sector for file allocation lookups, so this demo had to fit in 2816 bytes, and ended up being 2799 bytes big.
 
 ### Improvements
 
